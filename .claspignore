@@ -1,0 +1,22 @@
+# .claspignore
+.git/
+.gitignore
+node_modules/
+tests
+tests/
+**/tests/**
+.env
+gasfakes.json
+README.md
+change_logs/
+.agent/
+package.json
+package-lock.json
+.pre-commit-config.yaml
+
+# Ignore Google Cloud SDK (contains .gs files that confuse clasp)
+google-cloud-sdk/
+google-cloud-sdk/**
+/google-cloud-sdk/
+**/google-cloud-sdk/**
+**/**/xterm.gs
