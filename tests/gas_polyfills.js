@@ -19,7 +19,7 @@ var Utilities_parseDate_Mock = function (dateStr, timeZone, format) {
     // dateStr is formatted as "yyyy-MM-dd'T'HH:mm:ss" by import_calendar.js
     // e.g. "2026-03-12T09:00:00"
 
-    var parts = dateStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+    var parts = dateStr.match(new RegExp('(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})'));
     if (!parts) return new Date();
 
     var year = parseInt(parts[1]);

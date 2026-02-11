@@ -6,6 +6,6 @@
  */
 
 // Override production config with test values
-GDRIVE_FOLDER_ID = '1WQIrPn1L3gQv5Vx4YOtzsTCdjFHTzYnw';
-ICS_FILE_NAME = 'test_data.ics';
-DRY_RUN = true;
+// GDRIVE_FOLDER_ID = '1WQIrPn1L3gQv5Vx4YOtzsTCdjFHTzYnw';
+// ICS_FILE_NAME = 'test_data.ics';
+// DRY_RUN = true;
