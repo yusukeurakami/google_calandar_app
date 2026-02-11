@@ -11,7 +11,7 @@ var SOURCE_PROPERTY_VALUE = 'LATEST_CAL';
 var ICS_UID_TAG_KEY = 'icsUid';
 
 // Set to true to preview changes without modifying the calendar.
-var DRY_RUN = true;
+var DRY_RUN = false;
 // --- END CONFIGURATION ---
 
 
@@ -336,19 +336,59 @@ function parseICSDate(dateString, property) {
     // Check if it's a date-only value (no time)
     var isDateOnly = property && property.includes('VALUE=DATE');
 
-    // ICS format: YYYYMMDDTHHMMSSZ or YYYYMMDD
-    // Remove timezone indicator if present
-    if (dateString.endsWith('Z')) { dateString = dateString.slice(0, -1); }
+    // 1. Handle UTC (Z suffix)
+    if (dateString.endsWith('Z')) {
+        var year = parseInt(dateString.substring(0, 4));
+        var month = parseInt(dateString.substring(4, 6)) - 1;
+        var day = parseInt(dateString.substring(6, 8));
+        var hour = parseInt(dateString.substring(9, 11));
+        var minute = parseInt(dateString.substring(11, 13));
+        var second = parseInt(dateString.substring(13, 15));
+        // Create date as UTC
+        return new Date(Date.UTC(year, month, day, hour, minute, second));
+    }
 
+    // 2. Handle Named Timezone (TZID parameter)
+    // Extract TZID if present (e.g. DTSTART;TZID=America/Los_Angeles:...)
+    var tzidMatch = property && property.match(/TZID=([^:;]+)/);
+    if (tzidMatch && !isDateOnly) {
+        var tzid = tzidMatch[1];
+        var year = dateString.substring(0, 4);
+        var month = dateString.substring(4, 6);
+        var day = dateString.substring(6, 8);
+        var hour = dateString.substring(9, 11);
+        var minute = dateString.substring(11, 13);
+        var second = dateString.substring(13, 15);
+
+        // Format as ISO-like string for Utilities.parseDate
+        // parseDate formats: https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
+        var dateStr = year + '-' + month + '-' + day + 'T' + hour + ':' + minute + ':' + second;
+
+        try {
+            // Parses "date in TZID" -> "Date object (script timezone)"
+            // Fallback to mock for local testing if Utilities.parseDate is missing/proxied
+            if (typeof Utilities !== 'undefined' && Utilities.parseDate) {
+                return Utilities.parseDate(dateStr, tzid, "yyyy-MM-dd'T'HH:mm:ss");
+            } else if (typeof Utilities_parseDate_Mock !== 'undefined') {
+                return Utilities_parseDate_Mock(dateStr, tzid, "yyyy-MM-dd'T'HH:mm:ss");
+            } else {
+                throw new Error('Utilities.parseDate not available');
+            }
+        } catch (e) {
+            Logger.log('Error parsing timezone ' + tzid + ': ' + e.toString() + '. Falling back to local.');
+        }
+    }
+
+    // 3. Fallback: Floating / Local Time (or Date Only)
     var year, month, day, hour = 0, minute = 0, second = 0;
 
     if (isDateOnly || dateString.length === 8) {
         // Date only: YYYYMMDD
         year = parseInt(dateString.substring(0, 4));
-        month = parseInt(dateString.substring(4, 6)) - 1; // JavaScript months are 0-indexed
+        month = parseInt(dateString.substring(4, 6)) - 1;
         day = parseInt(dateString.substring(6, 8));
     } else if (dateString.length >= 15) {
-        // Date and time: YYYYMMDDTHHMMSS
+        // Date and time: YYYYMMDDTHHMMSS (floating)
         year = parseInt(dateString.substring(0, 4));
         month = parseInt(dateString.substring(4, 6)) - 1;
         day = parseInt(dateString.substring(6, 8));

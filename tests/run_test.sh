@@ -11,6 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TEMP_FILE=$(mktemp /tmp/gas_test_XXXXXX.js)
 
 cat "$SCRIPT_DIR/config.js" \
+    "$SCRIPT_DIR/tests/gas_polyfills.js" \
     "$SCRIPT_DIR/import_calendar.js" \
     "$SCRIPT_DIR/tests/test_config.js" \
     "$SCRIPT_DIR/tests/test_sync.js" \

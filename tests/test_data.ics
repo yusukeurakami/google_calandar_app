@@ -1,19 +1,25 @@
 BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//Test//Test//EN
+PRODID:-//Test//Timezone Test//EN
 BEGIN:VEVENT
-UID:test-uid-001@test
-DTSTART:20260301T100000
-DTEND:20260301T110000
-SUMMARY:Test Event Alpha
-DESCRIPTION:UPDATED: Description changed for sync test
-LOCATION:Tokyo Office
+UID:tz-test-utc@test
+DTSTART:20260310T100000Z
+DTEND:20260310T110000Z
+SUMMARY:UTC Event (10:00 UTC = 19:00 JST)
+DESCRIPTION:This event is at 10:00 UTC. Should appear as 19:00 JST.
 END:VEVENT
 BEGIN:VEVENT
-UID:test-uid-003@test
-DTSTART;VALUE=DATE:20260305
-DTEND;VALUE=DATE:20260306
-SUMMARY:Test All-Day Event
-DESCRIPTION:All-day event to test date-only parsing
+UID:tz-test-floating@test
+DTSTART:20260311T140000
+DTEND:20260311T150000
+SUMMARY:Floating Event (14:00 local)
+DESCRIPTION:No timezone. Should appear as 14:00 in calendar local time.
+END:VEVENT
+BEGIN:VEVENT
+UID:tz-test-pst@test
+DTSTART;TZID=America/Los_Angeles:20260312T090000
+DTEND;TZID=America/Los_Angeles:20260312T100000
+SUMMARY:PST Event (09:00 LA = 02:00+1 JST)
+DESCRIPTION:This event is at 09:00 Pacific. Should appear as 02:00 JST next day (Mar 13).
 END:VEVENT
 END:VCALENDAR
