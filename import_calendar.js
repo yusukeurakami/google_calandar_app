@@ -1,29 +1,17 @@
-// var folderId = "1zHbHUBl1O4rhgD9kh6q2rrhF9XzZSlN2"
-// var calendarName = "LandmarkX"
-
-/**
- * @OnlyCurrentDoc
- *
- * The above comment directs Apps Script to limit the scope of file
- * access for this script to only files used by the script.
- */
-
 // --- CONFIGURATION ---
-const GDRIVE_FOLDER_ID = '1zHbHUBl1O4rhgD9kh6q2rrhF9XzZSlN2';
-const ICS_FILE_NAME = 'latest_cal.ics'; // Make sure the file has the .ics extension
-// const CALENDAR_ID = '08ef9c4c99bb8797cdb9b6674e270f09ef6b88a09c549611032b0eb6a8f8b48c@group.calendar.google.com'; //
-const CALENDAR_ID = '8d0c4e93d1f2951030783a222a0b1c29c3e3d485e1d90d1438cc5e9b28c7c2a4@group.calendar.google.com';
+// GDRIVE_FOLDER_ID and CALENDAR_ID are defined in config.js
+var ICS_FILE_NAME = 'latest_cal.ics'; // Make sure the file has the .ics extension
 
 // This key is used to tag events created by this script.
 // It ensures we only delete events that this script has created.
-const SOURCE_PROPERTY_KEY = 'sourceFile';
-const SOURCE_PROPERTY_VALUE = 'LandmarkX';
+var SOURCE_PROPERTY_KEY = 'sourceFile';
+var SOURCE_PROPERTY_VALUE = 'LATEST_CAL';
 
 // Tag key used to store the ICS UID on each calendar event.
-const ICS_UID_TAG_KEY = 'icsUid';
+var ICS_UID_TAG_KEY = 'icsUid';
 
 // Set to true to preview changes without modifying the calendar.
-const DRY_RUN = true;
+var DRY_RUN = true;
 // --- END CONFIGURATION ---
 
 
@@ -250,7 +238,9 @@ function getICSFileFromDrive() {
  */
 function parseICSContent(icsContent) {
     var events = [];
-    var lines = icsContent.replace(new RegExp('\\r\\n', 'g'), '\\n').split('\\n');
+    var LF = String.fromCharCode(10);
+    var CR = String.fromCharCode(13);
+    var lines = icsContent.split(CR + LF).join(LF).split(LF);
 
     var currentEvent = null;
 
