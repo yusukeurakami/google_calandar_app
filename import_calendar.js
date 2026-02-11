@@ -14,6 +14,22 @@ var ICS_UID_TAG_KEY = 'icsUid';
 var DRY_RUN = false;
 // --- END CONFIGURATION ---
 
+// Mapping of Windows Timezone IDs (common in Outlook ICS) to IANA Timezones (supported by GAS)
+var TIMEZONE_MAP = {
+    'Tokyo Standard Time': 'Asia/Tokyo',
+    'Pacific Standard Time': 'America/Los_Angeles',
+    'Eastern Standard Time': 'America/New_York',
+    'GMT Standard Time': 'Europe/London',
+    'W. Europe Standard Time': 'Europe/Paris',
+    'Central Standard Time': 'America/Chicago',
+    'China Standard Time': 'Asia/Shanghai',
+    'Singapore Standard Time': 'Asia/Singapore',
+    'Hawaiian Standard Time': 'Pacific/Honolulu',
+    'Korea Standard Time': 'Asia/Seoul',
+    'India Standard Time': 'Asia/Kolkata',
+    'Australia Eastern Standard Time': 'Australia/Sydney'
+};
+
 
 /**
  * Main function to sync ICS file from Google Drive to Google Calendar.
@@ -363,6 +379,11 @@ function parseICSDate(dateString, property) {
         // Format as ISO-like string for Utilities.parseDate
         // parseDate formats: https://docs.oracle.com/javase/7/docs/api/java/text/SimpleDateFormat.html
         var dateStr = year + '-' + month + '-' + day + 'T' + hour + ':' + minute + ':' + second;
+
+        // Map generic/Windows timezone to IANA if possible
+        if (TIMEZONE_MAP[tzid]) {
+            tzid = TIMEZONE_MAP[tzid];
+        }
 
         try {
             // Parses "date in TZID" -> "Date object (script timezone)"

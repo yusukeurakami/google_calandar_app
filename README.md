@@ -2,6 +2,49 @@
 
 A Google Apps Script application that loads `.ics` files from Google Drive and updates Google Calendar accordingly.
 
+## Quick Start 🚀
+
+Follow these steps to deploy and run the script on your Google account.
+
+### 1. Install Clasp
+If you haven't already, install the Google Apps Script CLI:
+```bash
+npm install -g @google/clasp
+```
+
+### 2. Login & Create Project
+```bash
+clasp login
+clasp create --title "Google Calendar Sync" --type standalone
+```
+
+### 3. Push Code
+Upload the script files to Google Apps Script:
+```bash
+clasp push
+```
+
+### 4. Run the Script
+Open the project in your browser:
+```bash
+clasp open-script
+```
+- In the Apps Script editor, select `importICSFile` from the function dropdown.
+- Click **Run**.
+- Grant the necessary permissions when prompted.
+
+---
+
+## Features
+
+- **ICS Import**: Parses `.ics` files from Google Drive.
+- **Smart Sync**:
+  - Creates new events.
+  - Updates existing events (if changed).
+  - Deletes orphaned events (if removed from ICS).
+- **Timezone Support**: Automatically maps Windows-style timezones (e.g., `Tokyo Standard Time`, `Pacific Standard Time`) to IANA timezones (e.g., `Asia/Tokyo`) to ensure correct event times on Google Calendar.
+
+
 ## Development Environment
 
 This project uses a **local-first GAS development** workflow powered by:

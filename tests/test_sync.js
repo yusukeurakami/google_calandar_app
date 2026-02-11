@@ -20,6 +20,6 @@ Logger.log('Using folder: ' + GDRIVE_FOLDER_ID);
 Logger.log('Using file: ' + ICS_FILE_NAME);
 Logger.log('DRY_RUN: ' + DRY_RUN);
 
-importICSFile();
+// importICSFile();
 
 Logger.log('=== TEST SYNC COMPLETE ===');
