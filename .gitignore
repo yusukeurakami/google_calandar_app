@@ -1,0 +1,15 @@
+# Secrets & credentials
+.env
+
+# gcloud CLI installation
+google-cloud-sdk/
+
+# gas-fakes runtime cache
+gasfakes.json
+/tmp/gas-fakes/
+
+# Node.js
+node_modules/
+
+# OS
+.DS_Store
