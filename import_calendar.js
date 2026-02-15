@@ -34,10 +34,16 @@ var TIMEZONE_MAP = {
 /**
  * Main function to sync ICS file from Google Drive to Google Calendar.
  *
- * Uses ICS UID-based matching to correctly handle:
+ * Uses composite recurrenceKey-based matching to correctly handle:
  *   - New events (create)
  *   - Updated events — content or time changes (update in-place)
  *   - Removed events — no longer in ICS file (delete from calendar)
+ *   - Recurring event exceptions — multiple VEVENTs sharing the same UID
+ *     but distinguished by RECURRENCE-ID (RFC 5545 Section 3.8.4.4)
+ *
+ * The recurrenceKey is:
+ *   - UID alone for standalone or parent recurring events
+ *   - UID + "|" + RECURRENCE-ID value for recurrence exception instances
  *
  * Only events tagged with SOURCE_PROPERTY_KEY / SOURCE_PROPERTY_VALUE are
  * touched, so manually created calendar events are never affected.
@@ -57,11 +63,13 @@ function importICSFile() {
             return;
         }
 
-        // Build a map of ICS UID → event for O(1) lookups
+        // Build a map of recurrenceKey → event for O(1) lookups.
+        // recurrenceKey is UID for standalone/parent events, or
+        // UID|RECURRENCE-ID for recurrence exception instances.
         var icsMap = {};
         for (var i = 0; i < icsEvents.length; i++) {
-            if (icsEvents[i].uid) {
-                icsMap[icsEvents[i].uid] = icsEvents[i];
+            if (icsEvents[i].recurrenceKey) {
+                icsMap[icsEvents[i].recurrenceKey] = icsEvents[i];
             }
         }
 
@@ -87,16 +95,16 @@ function importICSFile() {
 
         // --- 4. Fetch existing events and filter to "ours" ---
         var existingEvents = calendar.getEvents(rangeStart, rangeEnd);
-        var calMap = {};  // ICS UID → CalendarEvent
+        var calMap = {};  // recurrenceKey → CalendarEvent
         var ourEventCount = 0;
 
         for (var k = 0; k < existingEvents.length; k++) {
             var calEvent = existingEvents[k];
             var sourceTag = calEvent.getTag(SOURCE_PROPERTY_KEY);
             if (sourceTag === SOURCE_PROPERTY_VALUE) {
-                var uid = calEvent.getTag(ICS_UID_TAG_KEY);
-                if (uid) {
-                    calMap[uid] = calEvent;
+                var recKey = calEvent.getTag(ICS_UID_TAG_KEY);
+                if (recKey) {
+                    calMap[recKey] = calEvent;
                 }
                 ourEventCount++;
             }
@@ -110,19 +118,19 @@ function importICSFile() {
         var unchangedCount = 0;
         var errorCount = 0;
 
-        var icsUids = Object.keys(icsMap);
-        for (var m = 0; m < icsUids.length; m++) {
-            var icsUid = icsUids[m];
-            var icsEvent = icsMap[icsUid];
+        var icsKeys = Object.keys(icsMap);
+        for (var m = 0; m < icsKeys.length; m++) {
+            var icsKey = icsKeys[m];
+            var icsEvent = icsMap[icsKey];
 
             try {
-                if (calMap[icsUid]) {
+                if (calMap[icsKey]) {
                     // Event exists on calendar — check if it needs updating
-                    var calendarEvent = calMap[icsUid];
+                    var calendarEvent = calMap[icsKey];
 
                     if (!eventsEqual(icsEvent, calendarEvent)) {
                         if (DRY_RUN) {
-                            Logger.log('[DRY RUN] UPDATE: "' + icsEvent.summary + '" (UID: ' + icsUid + ')');
+                            Logger.log('[DRY RUN] UPDATE: "' + icsEvent.summary + '" (key: ' + icsKey + ')');
                         } else {
                             calendarEvent.setTitle(icsEvent.summary || 'Untitled Event');
                             calendarEvent.setTime(icsEvent.start, icsEvent.end);
@@ -135,12 +143,12 @@ function importICSFile() {
                     }
 
                     // Remove from calMap so remaining entries are orphans
-                    delete calMap[icsUid];
+                    delete calMap[icsKey];
 
                 } else {
                     // New event — create it
                     if (DRY_RUN) {
-                        Logger.log('[DRY RUN] CREATE: "' + icsEvent.summary + '" at ' + icsEvent.start + ' (UID: ' + icsUid + ')');
+                        Logger.log('[DRY RUN] CREATE: "' + icsEvent.summary + '" at ' + icsEvent.start + ' (key: ' + icsKey + ')');
                     } else {
                         var newEvent = calendar.createEvent(
                             icsEvent.summary || 'Untitled Event',
@@ -152,7 +160,7 @@ function importICSFile() {
                             }
                         );
                         newEvent.setTag(SOURCE_PROPERTY_KEY, SOURCE_PROPERTY_VALUE);
-                        newEvent.setTag(ICS_UID_TAG_KEY, icsUid);
+                        newEvent.setTag(ICS_UID_TAG_KEY, icsKey);
                     }
                     createdCount++;
                 }
@@ -164,13 +172,13 @@ function importICSFile() {
 
         // --- 6. Delete orphaned events (on calendar but not in ICS) ---
         var deletedCount = 0;
-        var orphanUids = Object.keys(calMap);
-        for (var n = 0; n < orphanUids.length; n++) {
-            var orphanUid = orphanUids[n];
-            var orphanEvent = calMap[orphanUid];
+        var orphanKeys = Object.keys(calMap);
+        for (var n = 0; n < orphanKeys.length; n++) {
+            var orphanKey = orphanKeys[n];
+            var orphanEvent = calMap[orphanKey];
             try {
                 if (DRY_RUN) {
-                    Logger.log('[DRY RUN] DELETE: "' + orphanEvent.getTitle() + '" at ' + orphanEvent.getStartTime() + ' (UID: ' + orphanUid + ')');
+                    Logger.log('[DRY RUN] DELETE: "' + orphanEvent.getTitle() + '" at ' + orphanEvent.getStartTime() + ' (key: ' + orphanKey + ')');
                 } else {
                     orphanEvent.deleteEvent();
                 }
@@ -245,12 +253,18 @@ function getICSFileFromDrive() {
 /**
  * Parses ICS content and extracts events.
  *
- * Handles multi-line folding (RFC 5545 Section 3.1) and text
- * unescaping (Section 3.3.11).
+ * Handles multi-line folding (RFC 5545 Section 3.1), text unescaping
+ * (Section 3.3.11), and RECURRENCE-ID (Section 3.8.4.4) for recurring
+ * event exception instances.
+ *
+ * Each returned event includes a recurrenceKey field used as the unique
+ * identifier for syncing:
+ *   - UID alone for standalone/parent events
+ *   - UID + "|" + RECURRENCE-ID value for recurrence exceptions
  *
  * @param {string} icsContent - The raw ICS file content.
  * @return {Array<Object>} Array of event objects with summary, description,
- *     location, start, end, and uid fields.
+ *     location, start, end, uid, recurrenceId, and recurrenceKey fields.
  */
 function parseICSContent(icsContent) {
     var events = [];
@@ -277,7 +291,9 @@ function parseICSContent(icsContent) {
                 location: '',
                 start: null,
                 end: null,
-                uid: ''
+                uid: '',
+                recurrenceId: '',
+                recurrenceKey: ''
             };
             continue;
         }
@@ -285,6 +301,13 @@ function parseICSContent(icsContent) {
         // End of an event
         if (line === 'END:VEVENT') {
             if (currentEvent && currentEvent.start && currentEvent.end) {
+                // Build composite key: UID alone for standalone/parent events,
+                // UID|RECURRENCE-ID for recurrence exception instances.
+                // RECURRENCE-ID is the original occurrence date (RFC 5545 Section
+                // 3.8.4.4) and stays stable even when the instance is rescheduled.
+                currentEvent.recurrenceKey = currentEvent.recurrenceId
+                    ? currentEvent.uid + '|' + currentEvent.recurrenceId
+                    : currentEvent.uid;
                 events.push(currentEvent);
             }
             currentEvent = null;
@@ -327,6 +350,11 @@ function parseICSContent(icsContent) {
                         break;
                     case 'UID':
                         currentEvent.uid = value;
+                        break;
+                    case 'RECURRENCE-ID':
+                        // Store the raw date-time value (e.g. "20260126T160500")
+                        // for use as part of the composite recurrenceKey.
+                        currentEvent.recurrenceId = value;
                         break;
                 }
             }
