@@ -34,15 +34,21 @@ function cleanupCalendar() {
 
         if (source === SOURCE_PROPERTY_VALUE) {
             try {
-                // Check dry run? No, purpose is to clean up.
-                // But let's be safe: log first.
-                // Actually user wants it fixed.
-                Logger.log('Deleting event: "' + event.getTitle() + '" at ' + event.getStartTime());
+                Logger.log('Deleting event ' + (deletedCount + 1) + ': "' + event.getTitle() + '" at ' + event.getStartTime());
                 event.deleteEvent();
                 deletedCount++;
+
+                // Throttle to avoid Google Calendar rate limits.
+                // Sleep 1s every deletion, extra 5s every 20 deletions.
+                Utilities.sleep(1000);
+                if (deletedCount % 20 === 0) {
+                    Logger.log('Throttle pause at ' + deletedCount + ' deletions...');
+                    Utilities.sleep(5000);
+                }
             } catch (e) {
-                Logger.log('Error deleting event: ' + e.toString());
+                Logger.log('Error deleting event: ' + e.toString() + '. Sleeping 10s before retry...');
                 errorCount++;
+                Utilities.sleep(10000);
             }
         }
     }

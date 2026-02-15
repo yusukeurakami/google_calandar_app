@@ -118,6 +118,8 @@ function importICSFile() {
         var unchangedCount = 0;
         var errorCount = 0;
 
+        var mutationCount = 0;  // Track total mutations for throttling
+
         var icsKeys = Object.keys(icsMap);
         for (var m = 0; m < icsKeys.length; m++) {
             var icsKey = icsKeys[m];
@@ -136,6 +138,7 @@ function importICSFile() {
                             calendarEvent.setTime(icsEvent.start, icsEvent.end);
                             calendarEvent.setDescription(icsEvent.description || '');
                             calendarEvent.setLocation(icsEvent.location || '');
+                            mutationCount = throttleAfterMutation_(mutationCount);
                         }
                         updatedCount++;
                     } else {
@@ -161,11 +164,14 @@ function importICSFile() {
                         );
                         newEvent.setTag(SOURCE_PROPERTY_KEY, SOURCE_PROPERTY_VALUE);
                         newEvent.setTag(ICS_UID_TAG_KEY, icsKey);
+                        mutationCount = throttleAfterMutation_(mutationCount);
                     }
                     createdCount++;
                 }
             } catch (error) {
                 Logger.log('Error processing event "' + icsEvent.summary + '": ' + error.toString());
+                Logger.log('Sleeping 10s after error before continuing...');
+                Utilities.sleep(10000);
                 errorCount++;
             }
         }
@@ -181,10 +187,13 @@ function importICSFile() {
                     Logger.log('[DRY RUN] DELETE: "' + orphanEvent.getTitle() + '" at ' + orphanEvent.getStartTime() + ' (key: ' + orphanKey + ')');
                 } else {
                     orphanEvent.deleteEvent();
+                    mutationCount = throttleAfterMutation_(mutationCount);
                 }
                 deletedCount++;
             } catch (error) {
                 Logger.log('Error deleting orphan event "' + orphanEvent.getTitle() + '": ' + error.toString());
+                Logger.log('Sleeping 10s after error before continuing...');
+                Utilities.sleep(10000);
                 errorCount++;
             }
         }
@@ -201,6 +210,28 @@ function importICSFile() {
     } catch (error) {
         Logger.log('Error in importICSFile: ' + error.toString());
     }
+}
+
+
+/**
+ * Throttles calendar mutations to avoid Google Calendar rate limits.
+ *
+ * Sleeps 1 second after every mutation, plus an extra 5 seconds every
+ * 20 mutations.  This keeps the script well under the burst threshold
+ * that triggers "You have been creating or deleting too many calendars
+ * or calendar events in a short time".
+ *
+ * @param {number} mutationCount - Current count of mutations performed.
+ * @return {number} Updated mutation count (incremented by 1).
+ */
+function throttleAfterMutation_(mutationCount) {
+    mutationCount++;
+    Utilities.sleep(1000);
+    if (mutationCount % 20 === 0) {
+        Logger.log('Throttle pause at ' + mutationCount + ' mutations...');
+        Utilities.sleep(5000);
+    }
+    return mutationCount;
 }
 
 
