@@ -10,40 +10,58 @@
 // So we define a global mock that import_calendar.js can fall back to.
 
 /**
- * Mocks Utilities.parseDate for specific test cases.
+ * Mocks Utilities.parseDate using Node's Intl API for correct timezone
+ * conversion.
  *
- * CAUTION: This is NOT a full timezone parser. It only handles
- * timezones used in test_data.ics for verification.
+ * Given a date-time string and an IANA timezone, returns a Date object
+ * representing that wall-clock time in the specified timezone.
+ *
+ * @param {string} dateStr - Date string in "yyyy-MM-dd'T'HH:mm:ss" format.
+ * @param {string} timeZone - IANA timezone identifier (e.g. "Asia/Tokyo").
+ * @param {string} format - SimpleDateFormat pattern (ignored; we always
+ *     expect the ISO-like format from import_calendar.js).
+ * @return {Date} JavaScript Date representing the specified time.
  */
 var Utilities_parseDate_Mock = function (dateStr, timeZone, format) {
-    // dateStr is formatted as "yyyy-MM-dd'T'HH:mm:ss" by import_calendar.js
-    // e.g. "2026-03-12T09:00:00"
+    var parts = dateStr.match(
+        new RegExp('(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})')
+    );
+    if (!parts) { return new Date(); }
 
-    var parts = dateStr.match(new RegExp('(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2}):(\\d{2})'));
-    if (!parts) return new Date();
+    var year   = parseInt(parts[1], 10);
+    var month  = parseInt(parts[2], 10) - 1; // 0-based
+    var day    = parseInt(parts[3], 10);
+    var hour   = parseInt(parts[4], 10);
+    var minute = parseInt(parts[5], 10);
+    var second = parseInt(parts[6], 10);
 
-    var year = parseInt(parts[1]);
-    var month = parseInt(parts[2]) - 1;
-    var day = parseInt(parts[3]);
-    var hour = parseInt(parts[4]);
-    var minute = parseInt(parts[5]);
-    var second = parseInt(parts[6]);
+    // Treat the input components as if they were UTC, then use Intl to
+    // find the timezone offset at that moment.
+    var utcMs = Date.UTC(year, month, day, hour, minute, second);
 
-    // Create a base date (treated as if it were UTC to modify it easily)
-    var date = new Date(Date.UTC(year, month, day, hour, minute, second));
+    var formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hourCycle: 'h23'
+    });
 
-    // Apply offset based on timeZone
-    if (timeZone === 'America/Los_Angeles') {
-        // America/Los_Angeles in March 2026 is PDT (UTC-7)
-        // We want to return a UTC Date object that corresponds to 09:00 PDT
-        // 09:00 PDT = 16:00 UTC
-
-        // This Date object, when printed in JST environment (UTC+9),
-        // will show as 01:00 JST next day. Which is correct.
-
-        return new Date(Date.UTC(year, month, day, hour + 7, minute, second));
+    // Format utcMs in the target timezone to discover the offset.
+    var fp = formatter.formatToParts(new Date(utcMs));
+    var tz = {};
+    for (var i = 0; i < fp.length; i++) {
+        tz[fp[i].type] = parseInt(fp[i].value, 10);
     }
 
-    // Fallback for unknown zones (treat as UTC/Local)
-    return new Date(Date.UTC(year, month, day, hour, minute, second));
+    // offset = (value displayed in tz) − (the actual UTC we fed in)
+    var tzMs = Date.UTC(tz.year, tz.month - 1, tz.day, tz.hour, tz.minute, tz.second);
+    var offsetMs = tzMs - utcMs;
+
+    // The input says "these components are in <timeZone>".
+    // So the real UTC instant = inputAsUTC − offset.
+    return new Date(utcMs - offsetMs);
 };
